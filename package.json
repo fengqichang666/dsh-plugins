@@ -1,0 +1,11 @@
+{
+  "name": "dsh-default-reasoning",
+  "version": "0.1.0",
+  "description": "Give models without reasoning metadata a shared reasoning-effort set and default.",
+  "type": "module",
+  "main": "index.js",
+  "files": ["index.js", "cordis.patch.yml", "README.md", "test.mjs"],
+  "engines": { "node": ">=22", "dsh": ">=0.2.0-rc.2" },
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
+  "license": "MIT"
+}

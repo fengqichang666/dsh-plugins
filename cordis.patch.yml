@@ -1,0 +1,6 @@
+- insert:
+    - id: dsh-default-reasoning
+      name: dsh-default-reasoning
+      config:
+        defaultEffort: high
+        efforts: [low, medium, high, xhigh, max]
