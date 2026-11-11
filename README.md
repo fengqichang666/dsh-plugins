@@ -1,16 +1,19 @@
-# dsh-default-reasoning
+# DSH Plugins
 
-给没有推理元数据的新模型补齐统一的推理档位，并默认使用 `high`。
+个人 DSH 插件合集。每个插件可以单独安装；模型管理插件将模型直接写入 DSH 原生 `llm-pi-ai` 配置。
 
-默认档位：`low`、`medium`、`high`、`xhigh`、`max`。
+| 插件 | 目录 | 作用 |
+| --- | --- | --- |
+| `dsh-default-reasoning` | [`dsh-default-reasoning/`](dsh-default-reasoning/) | 给缺少能力元数据的模型补充推理默认值、1M 上下文和图片输入。 |
+| `dsh-model-manager` | [`dsh-model-manager/`](dsh-model-manager/) | 在设置中提供独立的模型快捷管理栏目，保存后同步到原生 Models。 |
 
-插件只填充“没有可用推理档位的模型”。已有可用模型能力和显式声明的推理配置不会被覆盖；仅有 `off` 档位的占位元数据也会补齐默认档位。
+## dsh-default-reasoning
 
-## 安装
+默认推理档位：`low`、`medium`、`high`、`xhigh`、`max`。仅补充没有可用推理档位或默认值的模型，不覆盖明确配置；缺少能力元数据时默认补齐 1M 上下文和图片输入。
 
-桌面版由 Electron 应用管理 `desktop` profile。安装本地版本时，将插件目录作为本地插件加入桌面插件管理器；命令行启动器会拒绝直接操作 `desktop` profile。
+桌面版由 Electron 应用管理 `desktop` profile。安装本地版本时，将 `dsh-default-reasoning/` 目录作为本地插件加入桌面插件管理器；命令行启动器会拒绝直接操作 `desktop` profile。安装或更新后完全退出并重新打开 DSH。
 
-完全退出并重新打开 DSH。需要自定义档位时，在 profile 的 `cordis.patch.yml` 中覆盖插件配置：
+需要自定义档位时，在 profile 的 `cordis.patch.yml` 中覆盖插件配置：
 
 ```yaml
 - id: dsh-default-reasoning
@@ -20,3 +23,7 @@
 ```
 
 如果上游接口实际不接受某个档位，请从 `efforts` 中删掉该档位；插件不会伪造上游接口能力。
+
+## dsh-model-manager
+
+见 [插件说明](dsh-model-manager/README.md)。它只管理已有的 pi-ai 提供商模型，不创建提供商或修改凭据；模型写入成功后会出现在 DSH 原生 Models/模型选择器中。

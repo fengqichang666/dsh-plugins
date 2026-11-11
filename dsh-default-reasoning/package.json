@@ -1,7 +1,7 @@
 {
   "name": "dsh-default-reasoning",
   "version": "0.1.0",
-  "description": "Give models without reasoning metadata a shared reasoning-effort set and default.",
+  "description": "Give models missing metadata defaults for reasoning, context, and image input.",
   "type": "module",
   "main": "index.js",
   "files": ["index.js", "cordis.patch.yml", "README.md", "test.mjs"],
