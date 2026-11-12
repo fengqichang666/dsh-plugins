@@ -12,15 +12,14 @@ function getAtPath(value, path) {
   }, value)
 }
 
-export function configuredModelProviders(directory, settingsView) {
+export function configuredModelProviders(directory, settingsView, registered = []) {
   if (!Array.isArray(directory)) throw new TypeError('Provider directory must be an array')
   if (!Array.isArray(settingsView?.namespaces)) throw new TypeError('Settings namespaces are missing')
   if (typeof settingsView.writable !== 'boolean') throw new TypeError('Settings writability is missing')
 
   const entries = directory.filter((entry) => entry?.settingsNs === MODEL_SETTINGS_NAMESPACE)
   const namespace = settingsView.namespaces.find((item) => item.ns === MODEL_SETTINGS_NAMESPACE)
-  if (entries.length > 0 && !namespace) throw new Error(`Settings namespace ${MODEL_SETTINGS_NAMESPACE} is unavailable`)
-  if (entries.length === 0) return { writable: settingsView.writable, providers: [] }
+  if (!namespace) throw new Error(`Settings namespace ${MODEL_SETTINGS_NAMESPACE} is unavailable`)
   if (!isRecord(namespace.value)) throw new TypeError(`Settings namespace ${MODEL_SETTINGS_NAMESPACE} has no value`)
   if (namespace.revision === undefined) throw new TypeError(`Settings namespace ${MODEL_SETTINGS_NAMESPACE} has no revision`)
 
@@ -43,19 +42,32 @@ export function configuredModelProviders(directory, settingsView) {
     })
   }
 
-  return { writable: settingsView.writable, providers }
+  return {
+    writable: settingsView.writable,
+    providers,
+    revision: namespace.revision,
+    taken: [...new Set([
+      ...directory.map((entry) => entry.provider),
+      ...registered.map((provider) => provider.id),
+      ...Object.keys(namespace.value.providers ?? {}),
+    ])],
+  }
 }
 
 export function historyModels(providers) {
-  return providers.flatMap((provider) => provider.models.flatMap((model, index) => {
-    if (typeof model?.id !== 'string' || model.id.length === 0) return []
-    return [{
-      key: JSON.stringify([provider.provider, index]),
-      provider: provider.provider,
-      displayName: provider.displayName,
-      model,
-    }]
-  }))
+  const models = new Map()
+  for (const provider of providers) {
+    for (const model of provider.models) {
+      if (typeof model?.id !== 'string' || model.id.length === 0 || models.has(model.id)) continue
+      models.set(model.id, { id: model.id, name: typeof model.name === 'string' ? model.name : '' })
+    }
+  }
+  return [...models.values()]
+}
+
+export function fillModelFromHistory(draft, choice) {
+  // 历史记录只是名称快捷填充，不导入原提供商的模型参数或连接信息。
+  return { ...draft, id: choice.id, name: choice.name }
 }
 
 export function validateModelDraft(draft, models) {
@@ -73,14 +85,6 @@ export function modelSettingsPath(provider) {
   return [...provider.settingsPath, 'models']
 }
 
-export function buildModelEntry({ id, name, contextWindow, imageSupport, template }) {
-  const model = template === undefined ? {} : structuredClone(template)
-  if (model.input !== undefined && !Array.isArray(model.input)) throw new TypeError('Model input modalities must be an array')
-  const input = model.input === undefined ? ['text'] : [...model.input]
-  if (!input.includes('text')) input.unshift('text')
-  const modalities = imageSupport
-    ? input.includes('image') ? input : [...input, 'image']
-    : input.filter((modality) => modality !== 'image')
-
-  return { ...model, id, name, contextWindow, input: modalities }
+export function buildModelEntry({ id, name, contextWindow, imageSupport }) {
+  return { id, name, contextWindow, input: imageSupport ? ['text', 'image'] : ['text'] }
 }

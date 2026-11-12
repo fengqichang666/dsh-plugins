@@ -26,4 +26,4 @@
 
 ## dsh-model-manager
 
-见 [插件说明](dsh-model-manager/README.md)。它只管理已有的 pi-ai 提供商模型，不创建提供商或修改凭据；模型写入成功后会出现在 DSH 原生 Models/模型选择器中。
+见 [插件说明](dsh-model-manager/README.md)。可新建提供商并填写地址、接口格式、API Key 和首个模型，也可向已有的 pi-ai 提供商添加模型；历史记录用于可选回填。密钥通过 DSH 凭据接口保存，模型写入后会出现在原生 Models/模型选择器中。

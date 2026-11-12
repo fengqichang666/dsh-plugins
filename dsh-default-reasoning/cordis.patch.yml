@@ -2,5 +2,8 @@
     - id: dsh-default-reasoning
       name: dsh-default-reasoning
       config:
+        reasoningEffort: true
+        contextWindow: true
+        imageInput: true
         defaultEffort: high
         efforts: [low, medium, high, xhigh, max]
