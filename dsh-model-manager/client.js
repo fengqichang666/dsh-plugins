@@ -113,6 +113,15 @@ window.__ModuleLoader__.load({
       if (models.some((model) => model?.id === id)) return { error: "duplicateModel" };
       return { value: { id, name, contextWindow } };
     }
+    function validateModelDrafts(drafts, existingModels = []) {
+      const models = [];
+      for (const [index, draft] of drafts.entries()) {
+        const validation = validateModelDraft(draft, [...existingModels, ...models]);
+        if (validation.error) return { error: validation.error, index };
+        models.push(buildModelEntry({ ...validation.value, imageSupport: draft.imageSupport }));
+      }
+      return { value: models };
+    }
     function modelSettingsPath(provider) {
       return [...provider.settingsPath, "models"];
     }
@@ -197,8 +206,10 @@ window.__ModuleLoader__.load({
         keyHelp: "\u53EA\u586B\u5199\u5BC6\u94A5\u672C\u8EAB\u3002\u5BC6\u94A5\u901A\u8FC7 DSH \u51ED\u636E\u63A5\u53E3\u4FDD\u5B58\uFF1B\u66F4\u6539\u5DF2\u6709\u63D0\u4F9B\u5546\u8FDE\u63A5\u53C2\u6570\u8BF7\u4F7F\u7528\u539F\u751F Models\u3002",
         baseURLHelp: "\u586B\u5199\u670D\u52A1\u5546\u63D0\u4F9B\u7684 API \u57FA\u7840\u5730\u5740\u3002OpenAI \u517C\u5BB9\u5730\u5740\u901A\u5E38\u5305\u542B /v1\uFF1BAnthropic \u901A\u5E38\u4E0D\u542B /v1/messages\u3002",
         create: "\u521B\u5EFA\u63D0\u4F9B\u5546\u5E76\u6DFB\u52A0\u6A21\u578B",
+        addModel: "\u6DFB\u52A0\u53E6\u4E00\u4E2A\u6A21\u578B",
+        removeModel: "\u79FB\u9664\u8FD9\u4E2A\u6A21\u578B",
         createConfirm: "\u786E\u8BA4\u521B\u5EFA\u63D0\u4F9B\u5546\u53CA\u6A21\u578B",
-        createDescription: "\u5C06\u521B\u5EFA\u4E0B\u5217\u63D0\u4F9B\u5546\u5E76\u540C\u6B65\u9996\u4E2A\u6A21\u578B\u5230\u539F\u751F Models\uFF1B\u975E\u7A7A API Key \u5C06\u5355\u72EC\u4FDD\u5B58\u5230 DSH \u51ED\u636E\u3002",
+        createDescription: "\u5C06\u521B\u5EFA\u4E0B\u5217\u63D0\u4F9B\u5546\u5E76\u540C\u6B65\u6A21\u578B\u5230\u539F\u751F Models\uFF1B\u975E\u7A7A API Key \u5C06\u5355\u72EC\u4FDD\u5B58\u5230 DSH \u51ED\u636E\u3002",
         created: "\u63D0\u4F9B\u5546\u53CA\u6A21\u578B\u5DF2\u540C\u6B65\u5230\u539F\u751F Models\u3002",
         keyPending: "\u63D0\u4F9B\u5546\u548C\u6A21\u578B\u5DF2\u4FDD\u5B58\uFF0C\u4F46 API Key \u4FDD\u5B58\u5931\u8D25\u3002\u8BF7\u68C0\u67E5\u6216\u91CD\u65B0\u586B\u5199\u5BC6\u94A5\u540E\u91CD\u8BD5\uFF1B\u4E0D\u4F1A\u91CD\u590D\u521B\u5EFA\u63D0\u4F9B\u5546\u3002",
         retryKey: "\u91CD\u8BD5\u4FDD\u5B58 API Key",
@@ -213,6 +224,7 @@ window.__ModuleLoader__.load({
         provider: "\u63D0\u4F9B\u5546",
         chooseProvider: "\u9009\u62E9\u63D0\u4F9B\u5546",
         history: "\u5386\u53F2\u6A21\u578B",
+        modelOptions: "\u6A21\u578B\u53C2\u6570",
         chooseHistory: "\u9009\u62E9\u6A21\u578B ID\uFF0C\u4EC5\u56DE\u586B ID \u548C\u540D\u79F0",
         modelId: "\u6A21\u578B ID",
         modelName: "\u6A21\u578B\u540D\u79F0",
@@ -250,8 +262,10 @@ window.__ModuleLoader__.load({
         keyHelp: "Enter only the key. Keys use DSH credential storage. Edit existing connection settings in native Models.",
         baseURLHelp: "Use the API base URL from your service. OpenAI URLs usually include /v1; Anthropic URLs usually omit /v1/messages.",
         create: "Create provider and model",
+        addModel: "Add another model",
+        removeModel: "Remove this model",
         createConfirm: "Confirm provider and model creation",
-        createDescription: "Create this provider and its first model in native Models. A nonempty API Key is stored separately in DSH credentials.",
+        createDescription: "Create this provider and its models in native Models. A nonempty API Key is stored separately in DSH credentials.",
         created: "Provider and model synced to native Models.",
         keyPending: "Provider and model saved, but the API Key could not be stored. Check or replace the key and retry; the provider will not be created again.",
         retryKey: "Retry saving API Key",
@@ -266,6 +280,7 @@ window.__ModuleLoader__.load({
         provider: "Provider",
         chooseProvider: "Choose a provider",
         history: "Saved models",
+        modelOptions: "Model options",
         chooseHistory: "Choose a model ID to fill only its ID and name",
         modelId: "Model ID",
         modelName: "Model name",
@@ -303,62 +318,100 @@ window.__ModuleLoader__.load({
       font: "inherit",
       padding: "0 10px"
     };
+    var iconButtonStyle = {
+      boxSizing: "border-box",
+      width: 28,
+      height: 28,
+      padding: 0,
+      border: "1px solid var(--dsw-alias-border-l3)",
+      borderRadius: "var(--dsw-radius-sm)",
+      background: "transparent",
+      color: "var(--dsw-alias-label-secondary)",
+      display: "inline-flex",
+      alignItems: "center",
+      justifyContent: "center",
+      cursor: "pointer"
+    };
     function Field(label, control, key) {
       return React.createElement("label", {
         key,
         style: { display: "flex", flexDirection: "column", gap: 5, minWidth: 0 }
       }, React.createElement("span", { style: { color: "var(--dsw-alias-label-secondary)", fontSize: 12 } }, label), control);
     }
-    function ModelFields({ t, history, draft, setDraft, disabled }) {
+    function ModelFields({ t, history, draft, setDraft, disabled, actions }) {
       return React.createElement(
         React.Fragment,
         null,
-        Field(t("history"), React.createElement(
-          "select",
-          {
-            value: "",
-            disabled: disabled || history.length === 0,
-            style: controlStyle,
-            onChange: (event) => {
-              const choice = history.find((item) => item.id === event.target.value);
-              if (!choice) return;
-              setDraft((current) => fillModelFromHistory(current, choice));
-            }
-          },
-          React.createElement("option", { value: "" }, t("chooseHistory")),
-          ...history.map((item) => React.createElement("option", { key: item.id, value: item.id }, item.id))
-        )),
         React.createElement(
           "div",
-          { style: { display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 } },
-          ...["id", "name"].map((key) => Field(t(key === "id" ? "modelId" : "modelName"), React.createElement("input", {
+          { style: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr)) auto", alignItems: "end", gap: 8 } },
+          React.createElement(
+            "div",
+            { style: { display: "grid", gridTemplateColumns: "minmax(0, 1fr) auto", alignItems: "end", gap: 6 } },
+            Field(t("modelId"), React.createElement("input", {
+              type: "text",
+              value: draft.id,
+              autoComplete: "off",
+              disabled,
+              style: controlStyle,
+              onChange: (event) => setDraft((current) => ({ ...current, id: event.target.value }))
+            })),
+            React.createElement(
+              "select",
+              {
+                value: "",
+                disabled: disabled || history.length === 0,
+                "aria-label": t("chooseHistory"),
+                title: t("chooseHistory"),
+                style: { ...controlStyle, width: 96 },
+                onChange: (event) => {
+                  const choice = history.find((item) => item.id === event.target.value);
+                  if (!choice) return;
+                  setDraft((current) => fillModelFromHistory(current, choice));
+                }
+              },
+              React.createElement("option", { value: "" }, t("history")),
+              ...history.map((item) => React.createElement("option", { key: item.id, value: item.id }, item.id))
+            )
+          ),
+          Field(t("modelName"), React.createElement("input", {
             type: "text",
-            value: draft[key],
+            value: draft.name,
             autoComplete: "off",
             disabled,
             style: controlStyle,
-            onChange: (event) => setDraft((current) => ({ ...current, [key]: event.target.value }))
-          }), key))
+            onChange: (event) => setDraft((current) => ({ ...current, name: event.target.value }))
+          })),
+          actions
         ),
-        Field(t("contextWindow"), React.createElement("input", {
-          type: "number",
-          min: 1,
-          step: 1,
-          value: draft.contextWindow,
-          disabled,
-          style: controlStyle,
-          onChange: (event) => setDraft((current) => ({ ...current, contextWindow: event.target.value }))
-        })),
         React.createElement(
-          "label",
-          { style: { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13 } },
-          React.createElement("input", {
-            type: "checkbox",
-            checked: draft.imageSupport,
-            disabled,
-            onChange: (event) => setDraft((current) => ({ ...current, imageSupport: event.target.checked }))
-          }),
-          t("imageSupport")
+          "details",
+          null,
+          React.createElement("summary", { style: { cursor: "pointer", fontSize: 12, color: "var(--dsw-alias-label-secondary)" } }, t("modelOptions")),
+          React.createElement(
+            "div",
+            { style: { display: "flex", flexDirection: "column", gap: 8, paddingTop: 8 } },
+            Field(t("contextWindow"), React.createElement("input", {
+              type: "number",
+              min: 1,
+              step: 1,
+              value: draft.contextWindow,
+              disabled,
+              style: controlStyle,
+              onChange: (event) => setDraft((current) => ({ ...current, contextWindow: event.target.value }))
+            })),
+            React.createElement(
+              "label",
+              { style: { display: "inline-flex", alignItems: "center", gap: 8, fontSize: 13 } },
+              React.createElement("input", {
+                type: "checkbox",
+                checked: draft.imageSupport,
+                disabled,
+                onChange: (event) => setDraft((current) => ({ ...current, imageSupport: event.target.checked }))
+              }),
+              t("imageSupport")
+            )
+          )
         )
       );
     }
@@ -368,9 +421,56 @@ window.__ModuleLoader__.load({
         style: { margin: 0, color: notice.type === "error" ? "var(--dsw-alias-state-error-primary)" : "var(--dsw-alias-state-success-primary)" }
       }, notice.message);
     }
+    function ModelList({ t, history, models, setModels, disabled }) {
+      return React.createElement(
+        React.Fragment,
+        null,
+        ...models.map((draft, index) => React.createElement(
+          "div",
+          {
+            key: index,
+            style: { display: "flex", flexDirection: "column", gap: 6 }
+          },
+          React.createElement(ModelFields, {
+            t,
+            history,
+            draft,
+            setDraft: (update) => {
+              if (disabled) return;
+              setModels((current) => current.map((item, itemIndex) => itemIndex === index ? typeof update === "function" ? update(item) : update : item));
+            },
+            disabled,
+            actions: React.createElement(
+              "div",
+              { style: { display: "flex", alignItems: "center", gap: 4, height: 34 } },
+              models.length > 1 && React.createElement("button", {
+                type: "button",
+                "aria-label": `${t("removeModel")} ${index + 1}`,
+                title: t("removeModel"),
+                disabled,
+                onClick: () => {
+                  if (!disabled) setModels((current) => current.filter((_, itemIndex) => itemIndex !== index));
+                },
+                style: iconButtonStyle
+              }, React.createElement(import_dsh_client_ui_primitives.IconTrashOutlineRegular, { size: 14 })),
+              index === models.length - 1 && React.createElement("button", {
+                type: "button",
+                "aria-label": t("addModel"),
+                title: t("addModel"),
+                disabled,
+                onClick: () => {
+                  if (!disabled) setModels((current) => [...current, emptyDraft()]);
+                },
+                style: iconButtonStyle
+              }, React.createElement(import_dsh_client_ui_primitives.IconPlusOutlineRegular, { size: 14 }))
+            )
+          })
+        ))
+      );
+    }
     function NewProviderForm({ ctx, t, snapshot, reload, onLockChange }) {
-      const [provider, setProvider] = React.useState({ route: "", displayName: "", baseURL: "", api: PROTOCOLS[0], apiKey: "" });
-      const [draft, setDraft] = React.useState(emptyDraft);
+      const [provider, setProvider] = React.useState({ route: "", displayName: "", baseURL: "", api: "openai-responses", apiKey: "" });
+      const [models, setModels] = React.useState(() => [emptyDraft()]);
       const [confirmation, setConfirmation] = React.useState(null);
       const [modalOpen, setModalOpen] = React.useState(false);
       const [committed, setCommitted] = React.useState(false);
@@ -388,20 +488,23 @@ window.__ModuleLoader__.load({
         }
         if (unavailable) return;
         const validated = validateProviderDraft(provider, snapshot.taken);
-        const model = validateModelDraft(draft, []);
-        const error = validated.error || model.error;
-        if (error) return setNotice({ type: "error", message: t(error) });
+        if (validated.error) return setNotice({ type: "error", message: t(validated.error) });
+        const validatedModels = validateModelDrafts(models);
+        if (validatedModels.error) return setNotice({ type: "error", message: `#${validatedModels.index + 1}: ${t(validatedModels.error)}` });
         try {
           setConfirmation({
             ...validated.value,
-            profile: { ...validated.value.profile, models: [buildModelEntry({ ...model.value, imageSupport: draft.imageSupport })] },
+            profile: {
+              ...validated.value.profile,
+              models: validatedModels.value
+            },
             revision: snapshot.revision
           });
           setNotice(null);
           setModalOpen(true);
           onLockChange(true);
-        } catch (error2) {
-          setNotice({ type: "error", message: error2 instanceof Error ? error2.message : String(error2) });
+        } catch (error) {
+          setNotice({ type: "error", message: error instanceof Error ? error.message : String(error) });
         }
       };
       const confirmSave = async () => {
@@ -438,8 +541,8 @@ window.__ModuleLoader__.load({
           committedRef.current = false;
           setCommitted(false);
           onLockChange(false);
-          setProvider({ route: "", displayName: "", baseURL: "", api: PROTOCOLS[0], apiKey: "" });
-          setDraft(emptyDraft());
+          setProvider({ route: "", displayName: "", baseURL: "", api: "openai-responses", apiKey: "" });
+          setModels([emptyDraft()]);
           setNotice({ type: "success", message: t("created") });
           await reload();
         } catch (error) {
@@ -458,9 +561,9 @@ window.__ModuleLoader__.load({
         }
       };
       const keyInput = () => React.createElement("input", {
-        type: "password",
+        type: "text",
         value: provider.apiKey,
-        autoComplete: "new-password",
+        autoComplete: "off",
         disabled: saving,
         style: controlStyle,
         onChange: (event) => setProvider((current) => ({ ...current, apiKey: event.target.value }))
@@ -468,29 +571,33 @@ window.__ModuleLoader__.load({
       return React.createElement(
         React.Fragment,
         null,
-        ...["route", "displayName", "baseURL"].map((key) => Field(t(key), React.createElement("input", {
-          type: "text",
-          value: provider[key],
-          autoComplete: "off",
-          disabled,
-          style: controlStyle,
-          placeholder: key === "route" ? "my-provider" : key === "baseURL" ? provider.api === "anthropic-messages" ? "https://gateway.example" : "https://gateway.example/v1" : "",
-          onChange: (event) => setProvider((current) => ({ ...current, [key]: event.target.value }))
-        }), key)),
-        Field(t("api"), React.createElement("select", {
-          value: provider.api,
-          disabled,
-          style: controlStyle,
-          onChange: (event) => setProvider((current) => ({ ...current, api: event.target.value }))
-        }, ...PROTOCOLS.map((api) => React.createElement("option", { key: api, value: api }, {
-          "openai-completions": "OpenAI Chat Completions",
-          "openai-responses": "OpenAI Responses",
-          "anthropic-messages": "Anthropic Messages"
-        }[api])))),
+        React.createElement(
+          "div",
+          { style: { display: "grid", gridTemplateColumns: "repeat(2, minmax(0, 1fr))", gap: 12 } },
+          ...["route", "displayName", "baseURL"].map((key) => Field(t(key), React.createElement("input", {
+            type: "text",
+            value: provider[key],
+            autoComplete: "off",
+            disabled,
+            style: controlStyle,
+            placeholder: key === "route" ? "my-provider" : key === "baseURL" ? provider.api === "anthropic-messages" ? "https://gateway.example" : "https://gateway.example/v1" : "",
+            onChange: (event) => setProvider((current) => ({ ...current, [key]: event.target.value }))
+          }), key)),
+          Field(t("api"), React.createElement("select", {
+            value: provider.api,
+            disabled,
+            style: controlStyle,
+            onChange: (event) => setProvider((current) => ({ ...current, api: event.target.value }))
+          }, ...PROTOCOLS.map((api) => React.createElement("option", { key: api, value: api }, {
+            "openai-completions": "OpenAI Chat Completions",
+            "openai-responses": "OpenAI Responses",
+            "anthropic-messages": "Anthropic Messages"
+          }[api]))))
+        ),
         React.createElement("p", { style: { margin: 0, fontSize: 12 } }, t("baseURLHelp")),
         Field(t("apiKey"), keyInput()),
         React.createElement("p", { style: { margin: 0, fontSize: 12 } }, t("keyHelp")),
-        React.createElement(ModelFields, { t, history: historyModels(snapshot.providers), draft, setDraft, disabled }),
+        React.createElement(ModelList, { t, history: historyModels(snapshot.providers), models, setModels, disabled }),
         React.createElement(Notice, { notice }),
         React.createElement(import_dsh_client_ui_primitives.Button, { variant: "outline", disabled: committed ? saving : disabled, onClick: requestSave }, t(committed ? "retryKey" : "create")),
         React.createElement(
@@ -500,7 +607,7 @@ window.__ModuleLoader__.load({
             onClose: closeConfirmation,
             title: t("createConfirm"),
             closeLabel: t("close"),
-            description: confirmation ? `${t("createDescription")} ${confirmation.profile.displayName || confirmation.route} (${confirmation.route}) \xB7 ${confirmation.profile.api} \xB7 ${confirmation.profile.baseURL} \xB7 ${confirmation.profile.models[0].id}` : "",
+            description: confirmation ? `${t("createDescription")} ${confirmation.profile.displayName || confirmation.route} (${confirmation.route}) \xB7 ${confirmation.profile.api} \xB7 ${confirmation.profile.baseURL} \xB7 ${confirmation.profile.models.map((model) => model.id).join(", ")}` : "",
             footer: React.createElement(
               React.Fragment,
               null,
@@ -518,7 +625,7 @@ window.__ModuleLoader__.load({
       const [providerId, setProviderId] = React.useState("");
       const [mode, setMode] = React.useState("new");
       const [newProviderLocked, setNewProviderLocked] = React.useState(false);
-      const [draft, setDraft] = React.useState(emptyDraft);
+      const [models, setModels] = React.useState(() => [emptyDraft()]);
       const [notice, setNotice] = React.useState(null);
       const [confirmation, setConfirmation] = React.useState(null);
       const [saving, setSaving] = React.useState(false);
@@ -568,14 +675,13 @@ window.__ModuleLoader__.load({
           setNotice({ type: "error", message: t("readOnly") });
           return;
         }
-        const validation = validateModelDraft(draft, selectedProvider.models);
+        const validation = validateModelDrafts(models, selectedProvider.models);
         if (validation.error) {
-          setNotice({ type: "error", message: t(validation.error) });
+          setNotice({ type: "error", message: `#${validation.index + 1}: ${t(validation.error)}` });
           return;
         }
         try {
-          const model = buildModelEntry({ ...validation.value, imageSupport: draft.imageSupport });
-          setConfirmation({ provider: selectedProvider, model });
+          setConfirmation({ provider: selectedProvider, models: validation.value });
           setNotice(null);
         } catch (error) {
           setNotice({ type: "error", message: error instanceof Error ? error.message : String(error) });
@@ -586,10 +692,10 @@ window.__ModuleLoader__.load({
         savingRef.current = true;
         setSaving(true);
         try {
-          const { provider, model } = confirmation;
+          const { provider, models: newModels } = confirmation;
           const response = await ctx.remote.settings.mutate(
             MODEL_SETTINGS_NAMESPACE,
-            [{ op: "set", path: modelSettingsPath(provider), value: [...provider.models, model] }],
+            [{ op: "set", path: modelSettingsPath(provider), value: [...provider.models, ...newModels] }],
             provider.revision
           );
           if (!response.ok) {
@@ -603,7 +709,7 @@ window.__ModuleLoader__.load({
             return;
           }
           setConfirmation(null);
-          setDraft(emptyDraft());
+          setModels([emptyDraft()]);
           setNotice({ type: "success", message: t("saved") });
           await reload();
         } catch (error) {
@@ -621,7 +727,7 @@ window.__ModuleLoader__.load({
           disabled: snapshot.loading || snapshot.providers.length === 0 || saving,
           onChange: (event) => {
             setProviderId(event.target.value);
-            setDraft(emptyDraft());
+            setModels([emptyDraft()]);
             setNotice(null);
           },
           style: controlStyle
@@ -673,7 +779,7 @@ window.__ModuleLoader__.load({
             null,
             !snapshot.loading && !snapshot.error && snapshot.providers.length === 0 && React.createElement("p", { role: "status", style: { margin: 0 } }, t("noProviders")),
             Field(t("provider"), providerSelect),
-            React.createElement(ModelFields, { t, history, draft, setDraft, disabled }),
+            React.createElement(ModelList, { t, history, models, setModels, disabled }),
             React.createElement(Notice, { notice }),
             React.createElement(
               "div",
@@ -689,7 +795,7 @@ window.__ModuleLoader__.load({
           },
           title: t("confirmTitle"),
           closeLabel: t("close"),
-          description: confirmation ? `${t("confirmDescription")} ${confirmation.provider.displayName}: ${confirmation.model.id} (${confirmation.model.name})` : "",
+          description: confirmation ? `${t("confirmDescription")} ${confirmation.provider.displayName}: ${confirmation.models.map((model) => `${model.id} (${model.name})`).join(", ")}` : "",
           footer: React.createElement(
             React.Fragment,
             null,

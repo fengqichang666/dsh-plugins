@@ -1,14 +1,18 @@
 import * as React from 'react'
-import { Button, Modal } from '@deepseek-ai/dsh-client-ui-primitives'
 import {
-  buildModelEntry,
+  Button,
+  IconPlusOutlineRegular,
+  IconTrashOutlineRegular,
+  Modal,
+} from '@deepseek-ai/dsh-client-ui-primitives'
+import {
   configuredModelProviders,
   DEFAULT_CONTEXT_WINDOW,
   fillModelFromHistory,
   historyModels,
   MODEL_SETTINGS_NAMESPACE,
   modelSettingsPath,
-  validateModelDraft,
+  validateModelDrafts,
 } from './model-data.js'
 import { PROTOCOLS, saveNewProvider, validateApiKey, validateProviderDraft } from './provider-data.js'
 
@@ -29,8 +33,10 @@ const messages = {
     keyHelp: '只填写密钥本身。密钥通过 DSH 凭据接口保存；更改已有提供商连接参数请使用原生 Models。',
     baseURLHelp: '填写服务商提供的 API 基础地址。OpenAI 兼容地址通常包含 /v1；Anthropic 通常不含 /v1/messages。',
     create: '创建提供商并添加模型',
+    addModel: '添加另一个模型',
+    removeModel: '移除这个模型',
     createConfirm: '确认创建提供商及模型',
-    createDescription: '将创建下列提供商并同步首个模型到原生 Models；非空 API Key 将单独保存到 DSH 凭据。',
+    createDescription: '将创建下列提供商并同步模型到原生 Models；非空 API Key 将单独保存到 DSH 凭据。',
     created: '提供商及模型已同步到原生 Models。',
     keyPending: '提供商和模型已保存，但 API Key 保存失败。请检查或重新填写密钥后重试；不会重复创建提供商。',
     retryKey: '重试保存 API Key',
@@ -45,6 +51,7 @@ const messages = {
     provider: '提供商',
     chooseProvider: '选择提供商',
     history: '历史模型',
+    modelOptions: '模型参数',
     chooseHistory: '选择模型 ID，仅回填 ID 和名称',
     modelId: '模型 ID',
     modelName: '模型名称',
@@ -82,8 +89,10 @@ const messages = {
     keyHelp: 'Enter only the key. Keys use DSH credential storage. Edit existing connection settings in native Models.',
     baseURLHelp: 'Use the API base URL from your service. OpenAI URLs usually include /v1; Anthropic URLs usually omit /v1/messages.',
     create: 'Create provider and model',
+    addModel: 'Add another model',
+    removeModel: 'Remove this model',
     createConfirm: 'Confirm provider and model creation',
-    createDescription: 'Create this provider and its first model in native Models. A nonempty API Key is stored separately in DSH credentials.',
+    createDescription: 'Create this provider and its models in native Models. A nonempty API Key is stored separately in DSH credentials.',
     created: 'Provider and model synced to native Models.',
     keyPending: 'Provider and model saved, but the API Key could not be stored. Check or replace the key and retry; the provider will not be created again.',
     retryKey: 'Retry saving API Key',
@@ -98,6 +107,7 @@ const messages = {
     provider: 'Provider',
     chooseProvider: 'Choose a provider',
     history: 'Saved models',
+    modelOptions: 'Model options',
     chooseHistory: 'Choose a model ID to fill only its ID and name',
     modelId: 'Model ID',
     modelName: 'Model name',
@@ -136,6 +146,20 @@ const controlStyle = {
   font: 'inherit',
   padding: '0 10px',
 }
+const iconButtonStyle = {
+  boxSizing: 'border-box',
+  width: 28,
+  height: 28,
+  padding: 0,
+  border: '1px solid var(--dsw-alias-border-l3)',
+  borderRadius: 'var(--dsw-radius-sm)',
+  background: 'transparent',
+  color: 'var(--dsw-alias-label-secondary)',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+}
 
 function Field(label, control, key) {
   return React.createElement('label', {
@@ -144,22 +168,32 @@ function Field(label, control, key) {
   }, React.createElement('span', { style: { color: 'var(--dsw-alias-label-secondary)', fontSize: 12 } }, label), control)
 }
 
-function ModelFields({ t, history, draft, setDraft, disabled }) {
+function ModelFields({ t, history, draft, setDraft, disabled, actions }) {
   return React.createElement(React.Fragment, null,
-    Field(t('history'), React.createElement('select', {
-      value: '', disabled: disabled || history.length === 0, style: controlStyle,
+    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr)) auto', alignItems: 'end', gap: 8 } },
+    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) auto', alignItems: 'end', gap: 6 } },
+    Field(t('modelId'), React.createElement('input', {
+      type: 'text', value: draft.id, autoComplete: 'off', disabled, style: controlStyle,
+      onChange: (event) => setDraft((current) => ({ ...current, id: event.target.value })),
+    })),
+    React.createElement('select', {
+      value: '', disabled: disabled || history.length === 0,
+      'aria-label': t('chooseHistory'), title: t('chooseHistory'),
+      style: { ...controlStyle, width: 96 },
       onChange: (event) => {
         const choice = history.find((item) => item.id === event.target.value)
         if (!choice) return
         setDraft((current) => fillModelFromHistory(current, choice))
       },
-    }, React.createElement('option', { value: '' }, t('chooseHistory')),
+    }, React.createElement('option', { value: '' }, t('history')),
     ...history.map((item) => React.createElement('option', { key: item.id, value: item.id }, item.id)))),
-    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 12 } },
-      ...['id', 'name'].map((key) => Field(t(key === 'id' ? 'modelId' : 'modelName'), React.createElement('input', {
-        type: 'text', value: draft[key], autoComplete: 'off', disabled, style: controlStyle,
-        onChange: (event) => setDraft((current) => ({ ...current, [key]: event.target.value })),
-      }), key))),
+    Field(t('modelName'), React.createElement('input', {
+      type: 'text', value: draft.name, autoComplete: 'off', disabled, style: controlStyle,
+      onChange: (event) => setDraft((current) => ({ ...current, name: event.target.value })),
+    })), actions),
+    React.createElement('details', null,
+    React.createElement('summary', { style: { cursor: 'pointer', fontSize: 12, color: 'var(--dsw-alias-label-secondary)' } }, t('modelOptions')),
+    React.createElement('div', { style: { display: 'flex', flexDirection: 'column', gap: 8, paddingTop: 8 } },
     Field(t('contextWindow'), React.createElement('input', {
       type: 'number', min: 1, step: 1, value: draft.contextWindow, disabled, style: controlStyle,
       onChange: (event) => setDraft((current) => ({ ...current, contextWindow: event.target.value })),
@@ -168,7 +202,7 @@ function ModelFields({ t, history, draft, setDraft, disabled }) {
       React.createElement('input', {
         type: 'checkbox', checked: draft.imageSupport, disabled,
         onChange: (event) => setDraft((current) => ({ ...current, imageSupport: event.target.checked })),
-      }), t('imageSupport')))
+      }), t('imageSupport')))))
 }
 
 function Notice({ notice }) {
@@ -178,9 +212,43 @@ function Notice({ notice }) {
   }, notice.message)
 }
 
+function ModelList({ t, history, models, setModels, disabled }) {
+  return React.createElement(React.Fragment, null,
+    ...models.map((draft, index) => React.createElement('div', {
+      key: index,
+      style: { display: 'flex', flexDirection: 'column', gap: 6 },
+    },
+    React.createElement(ModelFields, {
+      t, history, draft,
+      setDraft: (update) => {
+        if (disabled) return
+        setModels((current) => current.map((item, itemIndex) => itemIndex === index
+          ? (typeof update === 'function' ? update(item) : update) : item))
+      },
+      disabled,
+      actions: React.createElement('div', { style: { display: 'flex', alignItems: 'center', gap: 4, height: 34 } },
+        models.length > 1 && React.createElement('button', {
+          type: 'button',
+          'aria-label': `${t('removeModel')} ${index + 1}`,
+          title: t('removeModel'),
+          disabled,
+          onClick: () => { if (!disabled) setModels((current) => current.filter((_, itemIndex) => itemIndex !== index)) },
+          style: iconButtonStyle,
+        }, React.createElement(IconTrashOutlineRegular, { size: 14 })),
+        index === models.length - 1 && React.createElement('button', {
+          type: 'button',
+          'aria-label': t('addModel'),
+          title: t('addModel'),
+          disabled,
+          onClick: () => { if (!disabled) setModels((current) => [...current, emptyDraft()]) },
+          style: iconButtonStyle,
+        }, React.createElement(IconPlusOutlineRegular, { size: 14 }))),
+    }))))
+}
+
 function NewProviderForm({ ctx, t, snapshot, reload, onLockChange }) {
-  const [provider, setProvider] = React.useState({ route: '', displayName: '', baseURL: '', api: PROTOCOLS[0], apiKey: '' })
-  const [draft, setDraft] = React.useState(emptyDraft)
+  const [provider, setProvider] = React.useState({ route: '', displayName: '', baseURL: '', api: 'openai-responses', apiKey: '' })
+  const [models, setModels] = React.useState(() => [emptyDraft()])
   const [confirmation, setConfirmation] = React.useState(null)
   const [modalOpen, setModalOpen] = React.useState(false)
   const [committed, setCommitted] = React.useState(false)
@@ -199,13 +267,16 @@ function NewProviderForm({ ctx, t, snapshot, reload, onLockChange }) {
     }
     if (unavailable) return
     const validated = validateProviderDraft(provider, snapshot.taken)
-    const model = validateModelDraft(draft, [])
-    const error = validated.error || model.error
-    if (error) return setNotice({ type: 'error', message: t(error) })
+    if (validated.error) return setNotice({ type: 'error', message: t(validated.error) })
+    const validatedModels = validateModelDrafts(models)
+    if (validatedModels.error) return setNotice({ type: 'error', message: `#${validatedModels.index + 1}: ${t(validatedModels.error)}` })
     try {
       setConfirmation({
         ...validated.value,
-        profile: { ...validated.value.profile, models: [buildModelEntry({ ...model.value, imageSupport: draft.imageSupport })] },
+        profile: {
+          ...validated.value.profile,
+          models: validatedModels.value,
+        },
         revision: snapshot.revision,
       })
       setNotice(null)
@@ -250,8 +321,8 @@ function NewProviderForm({ ctx, t, snapshot, reload, onLockChange }) {
       committedRef.current = false
       setCommitted(false)
       onLockChange(false)
-      setProvider({ route: '', displayName: '', baseURL: '', api: PROTOCOLS[0], apiKey: '' })
-      setDraft(emptyDraft())
+      setProvider({ route: '', displayName: '', baseURL: '', api: 'openai-responses', apiKey: '' })
+      setModels([emptyDraft()])
       setNotice({ type: 'success', message: t('created') })
       await reload()
     } catch (error) {
@@ -272,10 +343,11 @@ function NewProviderForm({ ctx, t, snapshot, reload, onLockChange }) {
     }
   }
   const keyInput = () => React.createElement('input', {
-    type: 'password', value: provider.apiKey, autoComplete: 'new-password', disabled: saving, style: controlStyle,
+    type: 'text', value: provider.apiKey, autoComplete: 'off', disabled: saving, style: controlStyle,
     onChange: (event) => setProvider((current) => ({ ...current, apiKey: event.target.value })),
   })
   return React.createElement(React.Fragment, null,
+    React.createElement('div', { style: { display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 } },
     ...['route', 'displayName', 'baseURL'].map((key) => Field(t(key), React.createElement('input', {
       type: 'text', value: provider[key], autoComplete: 'off', disabled, style: controlStyle,
       placeholder: key === 'route' ? 'my-provider' : key === 'baseURL'
@@ -289,16 +361,16 @@ function NewProviderForm({ ctx, t, snapshot, reload, onLockChange }) {
       'openai-completions': 'OpenAI Chat Completions',
       'openai-responses': 'OpenAI Responses',
       'anthropic-messages': 'Anthropic Messages',
-    }[api])))),
+    }[api]))))),
     React.createElement('p', { style: { margin: 0, fontSize: 12 } }, t('baseURLHelp')),
     Field(t('apiKey'), keyInput()),
     React.createElement('p', { style: { margin: 0, fontSize: 12 } }, t('keyHelp')),
-    React.createElement(ModelFields, { t, history: historyModels(snapshot.providers), draft, setDraft, disabled }),
+    React.createElement(ModelList, { t, history: historyModels(snapshot.providers), models, setModels, disabled }),
     React.createElement(Notice, { notice }),
     React.createElement(Button, { variant: 'outline', disabled: committed ? saving : disabled, onClick: requestSave }, t(committed ? 'retryKey' : 'create')),
     React.createElement(Modal, {
       open: modalOpen, onClose: closeConfirmation, title: t('createConfirm'), closeLabel: t('close'),
-      description: confirmation ? `${t('createDescription')} ${confirmation.profile.displayName || confirmation.route} (${confirmation.route}) · ${confirmation.profile.api} · ${confirmation.profile.baseURL} · ${confirmation.profile.models[0].id}` : '',
+      description: confirmation ? `${t('createDescription')} ${confirmation.profile.displayName || confirmation.route} (${confirmation.route}) · ${confirmation.profile.api} · ${confirmation.profile.baseURL} · ${confirmation.profile.models.map((model) => model.id).join(', ')}` : '',
       footer: React.createElement(React.Fragment, null,
         React.createElement(Button, { variant: 'outline', disabled: saving, onClick: closeConfirmation, 'data-modal-autofocus': true }, t(committed ? 'close' : 'cancel')),
         React.createElement(Button, { variant: 'outline', disabled: saving, onClick: confirmSave }, t(saving ? 'saving' : committed ? 'retryKey' : 'confirm'))),
@@ -312,7 +384,7 @@ function ModelManagerSection({ ctx, t }) {
   const [providerId, setProviderId] = React.useState('')
   const [mode, setMode] = React.useState('new')
   const [newProviderLocked, setNewProviderLocked] = React.useState(false)
-  const [draft, setDraft] = React.useState(emptyDraft)
+  const [models, setModels] = React.useState(() => [emptyDraft()])
   const [notice, setNotice] = React.useState(null)
   const [confirmation, setConfirmation] = React.useState(null)
   const [saving, setSaving] = React.useState(false)
@@ -365,14 +437,13 @@ function ModelManagerSection({ ctx, t }) {
       setNotice({ type: 'error', message: t('readOnly') })
       return
     }
-    const validation = validateModelDraft(draft, selectedProvider.models)
+    const validation = validateModelDrafts(models, selectedProvider.models)
     if (validation.error) {
-      setNotice({ type: 'error', message: t(validation.error) })
+      setNotice({ type: 'error', message: `#${validation.index + 1}: ${t(validation.error)}` })
       return
     }
     try {
-      const model = buildModelEntry({ ...validation.value, imageSupport: draft.imageSupport })
-      setConfirmation({ provider: selectedProvider, model })
+      setConfirmation({ provider: selectedProvider, models: validation.value })
       setNotice(null)
     } catch (error) {
       setNotice({ type: 'error', message: error instanceof Error ? error.message : String(error) })
@@ -384,10 +455,10 @@ function ModelManagerSection({ ctx, t }) {
     savingRef.current = true
     setSaving(true)
     try {
-      const { provider, model } = confirmation
+      const { provider, models: newModels } = confirmation
       const response = await ctx.remote.settings.mutate(
         MODEL_SETTINGS_NAMESPACE,
-        [{ op: 'set', path: modelSettingsPath(provider), value: [...provider.models, model] }],
+        [{ op: 'set', path: modelSettingsPath(provider), value: [...provider.models, ...newModels] }],
         provider.revision,
       )
       if (!response.ok) {
@@ -401,7 +472,7 @@ function ModelManagerSection({ ctx, t }) {
         return
       }
       setConfirmation(null)
-      setDraft(emptyDraft())
+      setModels([emptyDraft()])
       setNotice({ type: 'success', message: t('saved') })
       await reload()
     } catch (error) {
@@ -418,7 +489,7 @@ function ModelManagerSection({ ctx, t }) {
     disabled: snapshot.loading || snapshot.providers.length === 0 || saving,
     onChange: (event) => {
       setProviderId(event.target.value)
-      setDraft(emptyDraft())
+      setModels([emptyDraft()])
       setNotice(null)
     },
     style: controlStyle,
@@ -453,7 +524,7 @@ function ModelManagerSection({ ctx, t }) {
       : React.createElement(React.Fragment, null,
     !snapshot.loading && !snapshot.error && snapshot.providers.length === 0 && React.createElement('p', { role: 'status', style: { margin: 0 } }, t('noProviders')),
     Field(t('provider'), providerSelect),
-    React.createElement(ModelFields, { t, history, draft, setDraft, disabled }),
+    React.createElement(ModelList, { t, history, models, setModels, disabled }),
     React.createElement(Notice, { notice }),
     React.createElement('div', { style: { display: 'flex', justifyContent: 'flex-end' } },
       React.createElement(Button, { variant: 'outline', disabled, onClick: requestSave }, t('add'))))),
@@ -463,7 +534,7 @@ function ModelManagerSection({ ctx, t }) {
       title: t('confirmTitle'),
       closeLabel: t('close'),
       description: confirmation
-        ? `${t('confirmDescription')} ${confirmation.provider.displayName}: ${confirmation.model.id} (${confirmation.model.name})`
+        ? `${t('confirmDescription')} ${confirmation.provider.displayName}: ${confirmation.models.map((model) => `${model.id} (${model.name})`).join(', ')}`
         : '',
       footer: React.createElement(React.Fragment, null,
         React.createElement(Button, {

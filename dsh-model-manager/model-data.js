@@ -81,6 +81,16 @@ export function validateModelDraft(draft, models) {
   return { value: { id, name, contextWindow } }
 }
 
+export function validateModelDrafts(drafts, existingModels = []) {
+  const models = []
+  for (const [index, draft] of drafts.entries()) {
+    const validation = validateModelDraft(draft, [...existingModels, ...models])
+    if (validation.error) return { error: validation.error, index }
+    models.push(buildModelEntry({ ...validation.value, imageSupport: draft.imageSupport }))
+  }
+  return { value: models }
+}
+
 export function modelSettingsPath(provider) {
   return [...provider.settingsPath, 'models']
 }
