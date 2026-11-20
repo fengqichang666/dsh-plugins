@@ -12,9 +12,12 @@
     "build": "node ./build.mjs",
     "test": "node ./test.mjs"
   },
-  "files": ["index.js", "client.js", "client.source.js", "model-data.js", "provider-data.js", "build.mjs", "README.md"],
+  "files": ["index.js", "client.js", "client.source.js", "model-data.js", "provider-data.js", "build.mjs", "cordis.patch.yml", "README.md"],
   "engines": { "node": ">=22", "dsh": ">=0.2.0-rc.5" },
   "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
     "client": {
       "inject": [
         "@deepseek-ai/dsh-api-remotes",
